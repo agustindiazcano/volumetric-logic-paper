@@ -1,0 +1,352 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\geometry{margin=1in}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+}
+
+\title{\textbf{Volumetric Logic (VL)}\\A Volumetric Decision Algebra for Deterministic Decision Functions}
+
+\author{
+Agustin Diaz-Cano\\[4pt]
+National Technological University (UTN)\\[6pt]
+\href{https://orcid.org/0009-0001-4336-490X}{ORCID: 0009-0001-4336-490X}\\[2pt]
+\texttt{adiazcano@frba.utn.edu.ar}
+}
+
+\date{Version 0.1 --- March 2026}
+
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newtheorem{conjecture}{Conjecture}
+\newtheorem{remark}{Remark}
+
+\DeclareMathOperator*{\argmax}{argmax}
+\DeclareMathOperator*{\supp}{supp}
+\newcommand{\bbone}{\mathbb{1}}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We introduce Volumetric Logic (VL), a geometric decision formalism for deterministic signals in $\mathbb{R}^n$ based on finite collections of weighted closed balls and a normalized radial proximity operator. VL induces a continuous, conic membership semantics computed as a max-aggregation of simple distance-to-radius terms, yielding an interpretable and efficiently evaluable decision map with $\mathcal{O}(kn)$ time for $k$ components in $n$ dimensions. We formalize semantic composition via pointwise $\min/\max$ and negation, showing that VL predicates form a bounded distributive sublattice at the semantic level. We further prove that deterministic VL semantics embed into a zero-order max-aggregation fuzzy inference system and provide a constructive approximation result for Lipschitz functions on compact domains via finite cone envelopes. Finally, we discuss structural limitations of union-of-balls superlevel sets and outline efficient evaluation procedures. VL provides a lightweight, geometry-first alternative for fast decision functions and offers a bridge between prototype-based models, fuzzy systems, and efficient inference.
+\end{abstract}
+
+\section{Introduction}
+
+In many real-time decision systems, from robotics to high-frequency trading, there is a need for decision functions that are both computationally efficient and geometrically interpretable. While Deep Neural Networks (DNNs) offer powerful approximation capabilities, their dense matrix multiplications can be computationally heavy, and their decision boundaries are often opaque. Conversely, classic rule-based systems offer interpretability but often lack the smoothness or approximation power required for complex continuous domains.
+
+This paper introduces \textbf{Volumetric Logic (VL)}, a formalism that bridges the gap between geometric prototype methods and logical inference. VL operates on "volumetric signals" defined by centers and radii in a metric space. By leveraging a normalized radial proximity function, VL constructs decision surfaces that are essentially unions of cones in the state space.
+
+\paragraph{Contributions.} The main contributions of this work are:
+\begin{enumerate}
+    \item \textbf{Formal Definition:} We provide a rigorous definition of Volumetric Signals and Predicates based on Euclidean balls.
+    \item \textbf{Algebraic Structure:} We establish that the semantic space of VL predicates forms a bounded distributive lattice under pointwise logical operations.
+    \item \textbf{Approximation Theory:} We prove that VL can approximate any Lipschitz continuous function on a compact domain with arbitrary precision, utilizing a McShane-type envelope construction.
+    \item \textbf{Computational Efficiency:} We show that VL evaluation scales linearly with the dimension $n$ and the number of components $k$, offering a potential speed advantage over dense MLP layers in specific regimes.
+\end{enumerate}
+
+\section{Related Work}
+
+Volumetric Logic draws inspiration from and relates to several established fields in approximation theory and machine learning.
+
+\paragraph{Fuzzy Inference Systems.}
+The semantics of VL closely resemble zero-order Takagi-Sugeno fuzzy systems \cite{takagi1985fuzzy} or standard Mamdani systems with max-aggregation \cite{mamdani1975experiment}. Specifically, the radial proximity function serves as a membership function. However, VL emphasizes a geometric interpretation (balls in metric space) rather than linguistic variables. For general background on fuzzy sets, membership functions, and fuzzy inference architectures, see \cite{klir1995fuzzy}.
+
+\paragraph{Prototype-Based Methods.}
+VL is also closely related to prototype-based and nearest-prototype methods, in which decisions are driven by distances to representative points or regions in feature space \cite{bezdek2001nearest}. In this sense, VL can be interpreted as a geometry-first prototype formalism with explicit radial semantics.
+
+\paragraph{Radial Basis Functions (RBF).}
+RBF networks \cite{broomhead1988multivariable} typically use Gaussian kernels and linear output layers. VL uses compact-support kernels (conic sections) and a max-aggregation (infinity norm) readout. This connects VL to "Maxout" networks \cite{goodfellow2013maxout}, which compute the maximum of affine functions. VL can be seen as computing the maximum of radial distance functions.
+
+\paragraph{Lipschitz Extension.}
+The theoretical capability of VL to approximate functions relies on the McShane extension theorem \cite{mcshane1934extension}, which states that Lipschitz functions can be represented as a supremum of cone-like functions. This provides the mathematical foundation for our approximation bounds.
+
+\section{State Space}
+
+\begin{definition}[Configuration Space]
+Let $X \subseteq \mathbb{R}^n$ be a metric space endowed with the Euclidean distance
+\begin{equation}
+d(x,y)=\|x-y\|_2=\sqrt{\sum_{i=1}^{n}(x_i-y_i)^2}.
+\end{equation}
+The space $X$ represents the operational domain (sensor space, robot states, feature space).
+\end{definition}
+
+\paragraph{Why ``volumetric''?}
+VL uses \emph{spherical receptive fields} (closed balls) in the state space. The semantics is driven by a normalized distance-to-radius, producing ``cone-like'' membership profiles rather than hard indicators.
+
+\section{Volumetric Signals}
+
+\begin{definition}[Volumetric Signal]
+A volumetric signal is a tuple $S=(c,\sigma,\mu)$ where $c\in X$, $\sigma\in[0,\infty)$, and $\mu\in[0,1]$.
+\end{definition}
+
+\begin{definition}[Geometric Support]
+The geometric support of $S$ is the closed ball
+\begin{equation}
+\supp(S)=B(c,\sigma)=\{x\in X:\|x-c\|_2\le \sigma\}.
+\end{equation}
+\end{definition}
+
+\section{Volumetric Predicates}
+
+\begin{definition}[Volumetric Predicate]
+A volumetric predicate is a finite collection
+\begin{equation}
+P=\{(B_i,w_i)\}_{i=1}^{k},
+\end{equation}
+where $B_i=B(c_i,r_i)$ with $c_i\in X$, $r_i\ge 0$, and weights $w_i\in[0,1]$. The total acceptance region is
+\begin{equation}
+R_P=\bigcup_{i=1}^{k} B_i.
+\end{equation}
+\end{definition}
+
+\section{Radial Proximity Function}
+
+\begin{definition}[Normalized Radial Proximity]
+For $B_1=B(c_1,r_1)$ and $B_2=B(c_2,r_2)$, define
+\begin{equation}
+\phi(B_1,B_2)=
+\begin{cases}
+\bbone[d(c_1,c_2)=0], & r_1+r_2=0,\\[4pt]
+\max\!\left(0,\,1-\dfrac{d(c_1,c_2)}{r_1+r_2}\right), & r_1+r_2>0.
+\end{cases}
+\end{equation}
+\end{definition}
+
+\begin{proposition}[Basic Properties]
+For all balls $B_1,B_2$:
+\begin{enumerate}[label=(\alph*)]
+\item (Bounds) $0\le \phi(B_1,B_2)\le 1$.
+\item (Symmetry) $\phi(B_1,B_2)=\phi(B_2,B_1)$.
+\item (Identity) $\phi(B,B)=1$.
+\item (Separation) Let $R=r_1+r_2$. If $R>0$, then $\phi(B_1,B_2)=0 \iff d(c_1,c_2)\ge R$.
+\item (Continuity) If $R>0$, $\phi$ is continuous in $(c_1,c_2,r_1,r_2)$. Moreover, the $R=0$ case matches the limit as $R\to 0^+$.
+\end{enumerate}
+\end{proposition}
+
+\section{Evaluation Semantics}
+
+\begin{definition}[Truth Value]
+Given $S=(c,\sigma,\mu)$ and $P=\{(B_i,w_i)\}_{i=1}^{k}$, the VL truth value is
+\begin{equation}
+\nu_P(S)=\mu\cdot \max_{i=1,\dots,k}\Big[w_i\cdot \phi\big(B(c,\sigma),B_i\big)\Big]\in[0,1].
+\end{equation}
+\end{definition}
+
+\paragraph{Deterministic signals ($\sigma=0$).}
+For a precise input signal $S=(x,0,1)$, the evaluation reduces to:
+\begin{equation}
+\nu_P((x,0,1))= \max_{i=1,\dots,k}\Big[w_i\cdot \phi\big(B(x,0), B(c_i, r_i)\big)\Big].
+\end{equation}
+In the typical case where $r_i > 0$, this explicitly expands to:
+\begin{equation}
+\nu_P((x,0,1))=\max_{i}\left[w_i\cdot \max\!\left(0,\,1-\frac{\|x-c_i\|_2}{r_i}\right)\right].
+\end{equation}
+This induces a continuous conic radial membership (not a hard indicator).
+
+\subsection{Deterministic Decision (Optional)}
+\begin{definition}[Threshold Decision]
+For $\tau\in(0,1]$, define a deterministic decision
+\begin{equation}
+D_P(S;\tau)=\bbone[\nu_P(S)\ge \tau].
+\end{equation}
+\end{definition}
+
+\section{Logical Algebra and Order}
+
+\begin{definition}[Signal Universe]
+Let $\mathcal{S}=X\times[0,\infty)\times[0,1]$. Each predicate $P$ induces a semantics map $\nu_P:\mathcal{S}\to[0,1]$.
+\end{definition}
+
+\begin{definition}[Semantic Predicates]
+Define
+\[
+\mathcal{V}_0=\{\nu_P:\mathcal{S}\to[0,1]\;:\;P \text{ is a finite volumetric predicate}\}\subseteq [0,1]^{\mathcal{S}}.
+\]
+Let $\mathcal{V}$ be the closure of $\mathcal{V}_0$ under the pointwise operations $\min$, $\max$, and $1-\cdot$. Elements of $\mathcal{V}$ are called \emph{semantic VL predicates}.
+\end{definition}
+
+For $a,b\in[0,1]$ define
+\begin{equation}
+a\wedge b=\min(a,b),\quad a\vee b=\max(a,b),\quad \neg a=1-a.
+\end{equation}
+
+\begin{definition}[Semantic Composition]
+Given semantics maps $f,g:\mathcal{S}\to[0,1]$, define pointwise
+\begin{align}
+(f\wedge g)(S)&=\min(f(S),g(S)),\\
+(f\vee g)(S)&=\max(f(S),g(S)),\\
+(\neg f)(S)&=1-f(S).
+\end{align}
+For base predicates $P,Q$, we write $\nu_{P\wedge Q}:=\nu_P\wedge\nu_Q$, $\nu_{P\vee Q}:=\nu_P\vee\nu_Q$, and $\nu_{\neg P}:=\neg\nu_P$. These composites are \emph{semantic objects}; they need not correspond to a single finite collection of balls.
+\end{definition}
+
+\begin{definition}[Order]
+For $f,g\in\mathcal{V}$ define $f\preceq g \iff \forall S\in\mathcal{S}: f(S)\le g(S)$.
+\end{definition}
+
+\begin{theorem}[Bounded Distributive Lattice (Semantic Level)]
+The full function space $[0,1]^{\mathcal{S}}$ equipped with pointwise order and the operators $(\wedge,\vee,\neg)$ is a bounded distributive lattice inherited from $([0,1],\min,\max)$. In particular, the semantic predicate class $\mathcal{V}$ is a bounded distributive \emph{sublattice}.
+\end{theorem}
+
+\section{Computational Complexity}
+
+\begin{theorem}[Evaluation Complexity]
+Evaluating $\nu_P(S)$ for $P$ with $k$ components in $\mathbb{R}^n$ costs
+\begin{equation}
+\mathrm{Time}(S,P)\in \mathcal{O}(kn).
+\end{equation}
+\end{theorem}
+
+\begin{corollary}[Comparison with a Simple Dense MLP]
+A dense MLP with one hidden layer of width $h$ and scalar output typically costs $\mathcal{O}(nh+h)$ multiplications per example (ignoring activation costs), and deeper networks add terms such as $\mathcal{O}(h^2)$. When $k\ll h$, VL evaluation is faster and scales linearly in $n$.
+\end{corollary}
+
+\section{Embedding into Fuzzy Systems}
+
+\begin{theorem}[Embedding into Zero-Order FIS]
+Define a zero-order fuzzy inference system
+\begin{equation}
+f(x)=\max_i w_i\,\mu_i(x),\qquad \mu_i(x)=\phi(B(x,0),B_i).
+\end{equation}
+Then $f(x)=\nu_P((x,0,1))$. Hence deterministic VL semantics coincide with a max-aggregation, zero-order radial fuzzy system. The mapping $P\mapsto f$ is generally not injective (e.g., redundant components can yield the same $f$).
+\end{theorem}
+
+\section{Approximation Capability}
+
+\begin{lemma}[McShane-type Sup Representation]
+If $f:K\to[0,1]$ is $L$-Lipschitz on compact $K$, then for all $x\in K$,
+\begin{equation}
+f(x)=\sup_{y\in K}\big(f(y)-L\|x-y\|_2\big).
+\end{equation}
+\end{lemma}
+
+\begin{proposition}[Finite Cone Approximation]
+Let $K\subset \mathbb{R}^n$ be compact with diameter $D$ and $f:K\to[0,1]$ be $L$-Lipschitz. For any $\varepsilon>0$, there exist points $\{c_i\}_{i=1}^k\subset K$ with
+\begin{equation}
+k=\mathcal{O}\!\left(\left(\frac{LD}{\varepsilon}\right)^n\right)
+\end{equation}
+such that the finite supremum
+\begin{equation}
+g(x)=\max_{i=1,\dots,k}\max\big(0,\, f(c_i)-L\|x-c_i\|_2\big)
+\end{equation}
+satisfies $\sup_{x\in K}|f(x)-g(x)|\le \varepsilon$.
+\end{proposition}
+
+\paragraph{Exact realization in VL (deterministic case).}
+For $S=(x,0,1)$,
+\begin{equation}
+\nu_P((x,0,1))=\max_i \left[w_i\max\!\left(0,1-\frac{\|x-c_i\|_2}{r_i}\right)\right].
+\end{equation}
+Choosing $r_i=w_i/L$ (for $w_i>0$) yields
+\begin{equation}
+w_i\max\!\left(0,1-\frac{\|x-c_i\|_2}{r_i}\right)=\max\big(0,\,w_i-L\|x-c_i\|_2\big),
+\end{equation}
+which matches each Lipschitz cone term.
+
+\section{Structural Limitations}
+
+\begin{proposition}[Convexity]
+Each component ball $B_i$ is convex.
+\end{proposition}
+
+\begin{remark}[Non-convex / disconnected decision regions]
+Superlevel sets of a single component term $x\mapsto w\,\max(0,1-\|x-c\|_2/r)$ are balls, and the superlevel sets of a max of such terms are unions of balls. As a result, highly non-convex or disconnected regions (e.g., XOR-like patterns under hard thresholding) typically require multiple components and/or semantic composition. A formal minimal-$k$ lower bound depends on the chosen thresholding convention and weights.
+\end{remark}
+
+\section{Lower Bound (Conjecture)}
+
+\begin{conjecture}[Curse of Dimensionality]
+For an $L$-Lipschitz $f$ on compact $K\subset \mathbb{R}^n$, uniform approximation error $\varepsilon$ requires
+\begin{equation}
+k\ge \Omega\!\left(\left(\frac{L\,\mathrm{diam}(K)}{\varepsilon}\right)^n\right),
+\end{equation}
+consistent with standard covering-number / volume arguments.
+\end{conjecture}
+
+\section{Efficient Evaluation Algorithm}
+
+\begin{lstlisting}
+Input: S=(c, sigma, mu), P={(c_i, r_i, w_i)}_{i=1}^k
+m <- 0
+for i = 1..k:
+    dist <- ||c - c_i||_2
+    R <- sigma + r_i
+    if R == 0:
+        overlap <- 1 if dist == 0 else 0
+    else:
+        overlap <- max(0, 1 - dist/R)
+    m <- max(m, w_i * overlap)
+return mu * m
+\end{lstlisting}
+
+Complexity: $\mathcal{O}(kn)$.
+
+\section{Conclusion}
+
+This work presented Volumetric Logic, a geometric formalism for deterministic decisions. By defining logic over unions of spherical regions with continuous radial membership, VL offers a unique balance between the interpretability of fuzzy systems and the geometric intuition of prototype methods. The algebraic structure ensures that these decisions can be composed logically, while the approximation results guarantee that VL is sufficiently expressive for Lipschitz continuous tasks. Future work will focus on empirical benchmarks, comparing the inference speed of VL against standard MLP architectures on low-latency tasks.
+
+\begin{thebibliography}{99}
+
+\bibitem{bezdek2001nearest}
+Bezdek, J. C., \& Kuncheva, L. I. (2001).
+\textit{Nearest prototype classifier designs: An experimental study}.
+International Journal of Intelligent Systems, 16(12), 1445--1473.
+
+\bibitem{broomhead1988multivariable}
+Broomhead, D. S., \& Lowe, D. (1988).
+\textit{Multivariable functional interpolation and adaptive networks}.
+Complex Systems, 2, 321--355.
+
+\bibitem{goodfellow2013maxout}
+Goodfellow, I. J., Warde-Farley, D., Mirza, M., Courville, A., \& Bengio, Y. (2013).
+\textit{Maxout networks}.
+International Conference on Machine Learning (ICML).
+
+\bibitem{klir1995fuzzy}
+Klir, G. J., \& Yuan, B. (1995).
+\textit{Fuzzy Sets and Fuzzy Logic: Theory and Applications}.
+Prentice Hall.
+
+\bibitem{mamdani1975experiment}
+Mamdani, E. H., \& Assilian, S. (1975).
+\textit{An experiment in linguistic synthesis with a fuzzy logic controller}.
+International Journal of Man-Machine Studies, 7(1), 1--13.
+
+\bibitem{mcshane1934extension}
+McShane, E. J. (1934).
+\textit{Extension of range of functions}.
+Bulletin of the American Mathematical Society, 40(12), 837--842.
+
+\bibitem{takagi1985fuzzy}
+Takagi, T., \& Sugeno, M. (1985).
+\textit{Fuzzy identification of systems and its applications to modeling and control}.
+IEEE Transactions on Systems, Man, and Cybernetics, 15(1), 116--132.
+
+\end{thebibliography}
+
+\end{document}

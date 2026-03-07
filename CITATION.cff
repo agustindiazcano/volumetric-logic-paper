@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+title: "Volumetric Logic (VL): A Volumetric Decision Algebra for Deterministic Decision Functions"
+message: "If you use this work, please cite this repository."
+type: article
+authors:
+  - family-names: "Diaz-Cano"
+    given-names: "Agustin"
+    orcid: "https://orcid.org/0009-0001-4336-490X"
+affiliation: "National Technological University (UTN), Argentina"
+email: "adiazcano@frba.utn.edu.ar"
+version: "0.1"
+date-released: "2026-03-07"
+license: "CC-BY-4.0"
+repository-code: "https://github.com/agustindiazcano/volumetric-logic-paper"
+url: "https://github.com/agustindiazcano/volumetric-logic-paper"
+abstract: "Volumetric Logic (VL) is a geometry-first decision formalism for deterministic signals in R^n based on finite collections of weighted closed balls and a normalized radial proximity operator. The framework develops formal semantics, logical structure, embedding into zero-order fuzzy inference systems, constructive approximation results for Lipschitz functions, and efficient O(kn) evaluation."
